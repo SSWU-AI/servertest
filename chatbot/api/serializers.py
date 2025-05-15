@@ -4,27 +4,38 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
-class RegisterSerializer(serializers.ModelSerializer):
+class SignupSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('username', 'password', 'email', 'nickname')
+        fields = ['username', 'email', 'password']
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
-        user = User.objects.create_user(**validated_data)
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password']
+        )
         return user
 
 class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
-    password = serializers.CharField(write_only=True)
+    email = serializers.EmailField()
+    password = serializers.CharField()
 
     def validate(self, data):
-        from django.contrib.auth import authenticate
-        user = authenticate(username=data['username'], password=data['password'])
-        if user:
-            refresh = RefreshToken.for_user(user)
-            return {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-            }
-        raise serializers.ValidationError("Invalid login credentials.")
+        email = data['email']
+        password = data['password']
+        user = User.objects.filter(email=email).first()
+        if user is None or not user.check_password(password):
+            raise serializers.ValidationError("이메일 또는 비밀번호가 틀렸습니다.")
+
+        refresh = RefreshToken.for_user(user)
+        return {
+            'token': str(refresh.access_token),
+            'username': user.username
+        }
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['username', 'email']
